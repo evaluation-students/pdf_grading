@@ -10,8 +10,16 @@ from azure.storage.blob import ContentSettings
 from langchain_openai import OpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain.chains import LLMChain
+from dotenv import load_dotenv
 
+load_dotenv()
 
+DOCUMENT_INTELLIGENCE_ENDPOINT = os.getenv('DOCUMENT_INTELLIGENCE_ENDPOINT')
+DOCUMENT_INTELLIGENCE_KEY = os.getenv('DOCUMENT_INTELLIGENCE_KEY')
+STORAGE_CONNECTION_STRING = os.getenv('STORAGE_CONNECTION_STRING')
+CONTAINER_NAME = "student-homework"
+MONGO_STRING = "mongodb+srv://admin:admin@cluster0.1jic3.mongodb.net/evaluation"
+os.environ["OPENAI_API_KEY"] = os.getenv('OPENAI_API_KEY')
 
 app = Flask(__name__)
 
@@ -124,14 +132,17 @@ def grade():
 
             #############
 
-            # START ANALYSIS #
-            Teacher preferences: {preferences}
+            # VARIABLES #
+            PLEASE START WITH PRINTING THIS: {preferences}
 
             Grading severity: {severity}
 
             Task: {task_description}
 
-            Student answer: {student_answer}
+            Student answer: {student_text}'
+
+            ###########
+            YOUR RESPONSE:
             """
     )
 
@@ -142,7 +153,6 @@ def grade():
         return jsonify({"error": f"No submissions found for student {graded_username} for homework {homework_name}"}), 404
 
     # Dictionary to store results
-    results = {}
     student_text = ''
 
     # Grade each submission (file) for the given student
