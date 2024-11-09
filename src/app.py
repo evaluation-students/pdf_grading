@@ -171,6 +171,11 @@ def grade():
     })
 
 
+@app.route("/hello", methods=["POST"])
+def print_hello():
+    return jsonify({"result": 'hello'})
+
+
 def extract_text_from_document(blob_url):
     # Call Document Intelligence to analyze the document
     poller = document_analysis_client.begin_analyze_document_from_url("prebuilt-read", blob_url)
