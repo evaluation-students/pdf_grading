@@ -4,9 +4,12 @@ from azure.ai.formrecognizer import DocumentAnalysisClient
 from pymongo import MongoClient
 from azure.core.credentials import AzureKeyCredential
 from flask import Flask, request, jsonify
-from utils import calculate_file_hash
+from utils import calculate_file_hash, grade_submission
 import base64
 from azure.storage.blob import ContentSettings
+from langchain_openai import OpenAI
+from langchain_core.prompts import PromptTemplate
+from langchain.chains import LLMChain
 
 
 
@@ -37,7 +40,7 @@ def upload_file():
     file.seek(0)
     file_data = file.read()
 
-    file_hash = calculate_file_hash(file)
+    file_hash = calculate_file_hash(file_data)
     existing_file = mongo_collection.find_one({"file_hash": file_hash})
 
     if existing_file:
@@ -62,10 +65,100 @@ def upload_file():
             "text": text,
             "filename": file.filename,
             "username": username,
-            "user_type": user_type
+            "user_type": user_type,
+            "homework": homework
         })
 
     return jsonify({"text": text}), 200
+
+
+@app.route("/grade", methods=["POST"])
+def grade():
+    data = request.json
+    homework_name = data.get("homework")
+    graded_username = data.get("graded_username")
+    teacher_preferences = data.get('preferences', [])
+    severity = data.get('severity', "normal, not too severe, not too laid back")
+    teacher_entry = mongo_collection.find_one({"homework": homework_name, "user_type": "teacher"})
+
+    if teacher_entry:
+        task_description = teacher_entry['text']
+    else:
+        raise ValueError("No teacher entry found for this homework.")
+
+    llm = OpenAI()
+    prompt = PromptTemplate(
+        input_variables=["task_description", "student_text", "preferences", "severity"],
+        template="""
+            # CONTEXT #
+            You are a grading assistant to a teacher. The teacher has to grade many students and you should try to help him. Each grade should be between 0 and 100, where 100 is the perfect answer.
+            You will receive the task description for the task the students have to solve.
+            You will receive the student answer.
+            You will receive the teacher preferences and grading severity.
+
+            #########
+
+            # OBJECTIVE #
+            Your task is to grade the students. The teacher might provide you with some preferences.
+            Generally, the most important thing is the answer correctness.
+            If the teacher provides preferences, then you MUST follow them.
+            The teacher can also tell you how severe in grading you should be, if you should give out 100 points easily or not. If it wants you to be severe, then you should give 100 points only for the perfect answer.
+
+            #########
+
+            # STYLE #
+            Write in an informative and instructional style.
+
+            #########
+
+            # Tone #
+            Maintain a positive and motivational tone throughout, fostering a sense of empowerment and encouragement.
+
+            # AUDIENCE #
+            The target audience is students and teachers.
+
+            #########
+
+            # RESPONSE FORMAT #
+            Please return the grade (a number between 0 and 100) and feedback in JSON format, as a string. I want only 2 fields, grade and feedback. The feedback should be an explanation for the grade.
+
+            #############
+
+            # START ANALYSIS #
+            Teacher preferences: {preferences}
+
+            Grading severity: {severity}
+
+            Task: {task_description}
+
+            Student answer: {student_answer}
+            """
+    )
+
+    chain = LLMChain(prompt=prompt, llm=llm)
+    student_entries = list(mongo_collection.find({"homework": homework_name, "user_type": "student", "username": graded_username}))
+
+    if not student_entries:
+        return jsonify({"error": f"No submissions found for student {graded_username} for homework {homework_name}"}), 404
+
+    # Dictionary to store results
+    results = {}
+    student_text = ''
+
+    # Grade each submission (file) for the given student
+    for student in student_entries:
+        student_text = student_text + '\n' + student['text']
+
+    grade, feedback = grade_submission(student_text, task_description, severity, teacher_preferences, chain)
+
+    if feedback == 'Error parsing the response.':
+        return jsonify({"error": "There was an error at grading from the LLM, please try again"}), 400
+
+    # Return the results as JSON
+    return jsonify({
+        "grade": grade,
+        "feedback": feedback
+    })
 
 
 def extract_text_from_document(blob_url):
