@@ -1,0 +1,4 @@
+Flask==3.0.3
+azure-storage-blob==12.23.1
+azure-ai-formrecognizer==3.3.3
+pymongo==4.10.1
