@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify
 from utils import calculate_file_hash, grade_submission
 import base64
 from azure.storage.blob import ContentSettings
-from langchain_openai import OpenAI
+from langchain.chat_models import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from dotenv import load_dotenv
@@ -96,7 +96,7 @@ def grade():
     else:
         raise ValueError("No teacher entry found for this homework.")
 
-    llm = OpenAI()
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
     prompt = PromptTemplate(
         input_variables=["task_description", "student_text", "preferences", "severity"],
         template="""
@@ -142,6 +142,15 @@ def grade():
             Task: {task_description}
 
             Student answer: {student_text}'
+
+            # IMPORTANT INSTRUCTIONS #
+			Make sure to follow the preferences provided by the teacher in `{preferences}`. They are **mandatory** and must directly impact the grading.
+
+			For example, if the teacher specifies:
+			- "If the answer is not in Romanian, deduct 20 points", make sure to apply this rule **before** grading the accuracy of the content.
+			- If the teacher states any other preferences, you must follow them exactly.
+
+			If no preferences are provided or they are empty, proceed with grading based on the correctness and clarity of the answer.
 
             ###########
             YOUR RESPONSE:

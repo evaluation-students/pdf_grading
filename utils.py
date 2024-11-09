@@ -21,10 +21,12 @@ def grade_submission(student_text, task_description, severity, preferences, chai
         "preferences": preferences
     }
     response = chain.invoke(inputs)['text']
+    response = response.replace('`', '')
 
+    if response.startswith('json') or response.startswith('[]'):
+        response = '\n'.join(response.split('\n')[1:])
     try:
         response = json.loads(response)
-        print(response)
         return response['grade'], response['feedback']
     except json.JSONDecodeError:
         return 0, "Error parsing the response."
