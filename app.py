@@ -23,7 +23,7 @@ MONGO_STRING = "mongodb+srv://admin:admin@cluster0.1jic3.mongodb.net/evaluation"
 os.environ["OPENAI_API_KEY"] = os.getenv('OPENAI_API_KEY')
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Initialize the BlobServiceClient and DocumentAnalysisClient
 blob_service_client = BlobServiceClient.from_connection_string(STORAGE_CONNECTION_STRING)
