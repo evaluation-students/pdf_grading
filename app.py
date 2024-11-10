@@ -170,7 +170,7 @@ def grade():
     student_entries = list(mongo_collection.find({"homework": homework_name, "user_type": "student", "username": graded_username}))
 
     if not student_entries:
-        return jsonify({"error": f"No submissions found for student {graded_username} for homework {homework_name}"}), 404
+        return jsonify({"grade": 0, "feedback": "No homework"}), 200
 
     # Dictionary to store results
     student_text = ''
