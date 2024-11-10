@@ -12,6 +12,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from dotenv import load_dotenv
 from flask_cors import CORS
+import json
 
 load_dotenv()
 
@@ -195,7 +196,43 @@ def grade():
 @app.route("/export", methods=["GET"])
 def export():
     data = request.json
-    homework_name = data.get("homework")
+    homework_name = data.get('homework_name')
+    if not homework_name:
+        return jsonify({"error": "Please provide a homework_name parameter"}), 400
+
+    # Query for students with the specific homework assignment
+    query = {
+        "role": "student",
+        "homework": homework_name
+    }
+
+    # Retrieve matching documents
+    results = user_collection.find(query)
+
+    # Prepare the output list
+    output = []
+
+    # Process each document
+    for doc in results:
+        # Get the index of the homework_name in the homework array
+        try:
+            index = doc['homework'].index(homework_name)
+            # Get the username and corresponding grade at the same index
+            username = doc['username']
+            grade = doc['grades'][index] if index < len(doc['grades']) else None
+
+            # Add to output if a grade is found at the corresponding index
+            if grade is not None:
+                output.append({
+                    "username": username,
+                    "grade": grade
+                })
+        except ValueError:
+            # Skip if homework_name is not in the homework list
+            continue
+
+    # Return the list as JSON
+    return jsonify(output), 200
 
 
 @app.route("/hello", methods=["POST"])
