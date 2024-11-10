@@ -4,7 +4,7 @@ from azure.ai.formrecognizer import DocumentAnalysisClient
 from pymongo import MongoClient
 from azure.core.credentials import AzureKeyCredential
 from flask import Flask, request, jsonify
-from utils import calculate_file_hash, grade_submission
+from utils import calculate_file_hash, grade_submission, update_grade
 import base64
 from azure.storage.blob import ContentSettings
 from langchain.chat_models import ChatOpenAI
@@ -32,6 +32,7 @@ document_analysis_client = DocumentAnalysisClient(endpoint=DOCUMENT_INTELLIGENCE
 client = MongoClient(MONGO_STRING)
 db = client.get_database()
 mongo_collection = db.pdf
+user_collection = db.users
 
 @app.route("/upload", methods=["POST"])
 def upload_file():
@@ -68,7 +69,14 @@ def upload_file():
     blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{CONTAINER_NAME}/{blob_name}"
 
     # Now call Document Intelligence to extract text from the blob
-    text = extract_text_from_document(blob_url)
+    if file.filename.lower().endswith('.txt'):
+    # Move to the start of the file (in case it has been read from already)
+        file.seek(0)
+
+        # Read and decode the file content to text
+        text = file.read().decode('utf-8')
+    else:
+        text = extract_text_from_document(blob_url)
 
     mongo_collection.insert_one({
             "file_hash": file_hash,
@@ -144,13 +152,13 @@ def grade():
             Student answer: {student_text}'
 
             # IMPORTANT INSTRUCTIONS #
-			Make sure to follow the preferences provided by the teacher in `{preferences}`. They are **mandatory** and must directly impact the grading.
+            Make sure to follow the preferences provided by the teacher in `{preferences}`. They are **mandatory** and must directly impact the grading.
 
-			For example, if the teacher specifies:
-			- "If the answer is not in Romanian, deduct 20 points", make sure to apply this rule **before** grading the accuracy of the content.
-			- If the teacher states any other preferences, you must follow them exactly.
+            For example, if the teacher specifies:
+            - "If the answer is not in Romanian, deduct 20 points", make sure to apply this rule **before** grading the accuracy of the content.
+            - If the teacher states any other preferences, you must follow them exactly.
 
-			If no preferences are provided or they are empty, proceed with grading based on the correctness and clarity of the answer.
+            If no preferences are provided or they are empty, proceed with grading based on the correctness and clarity of the answer.
 
             ###########
             YOUR RESPONSE:
@@ -175,11 +183,19 @@ def grade():
     if feedback == 'Error parsing the response.':
         return jsonify({"error": "There was an error at grading from the LLM, please try again"}), 400
 
+    update_grade(graded_username, homework_name, grade, user_collection)
+
     # Return the results as JSON
     return jsonify({
         "grade": grade,
         "feedback": feedback
     })
+
+
+@app.route("/export", methods=["GET"])
+def export():
+    data = request.json
+    homework_name = data.get("homework")
 
 
 @app.route("/hello", methods=["POST"])

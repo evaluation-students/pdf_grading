@@ -30,3 +30,27 @@ def grade_submission(student_text, task_description, severity, preferences, chai
         return response['grade'], response['feedback']
     except json.JSONDecodeError:
         return 0, "Error parsing the response."
+
+
+def update_grade(username, homework, grade, user_collection):
+    user = user_collection.find_one({"username": username})
+
+    if not user:
+        return "User not found"
+
+    try:
+        homework_index = user['homework'].index(homework)
+    except ValueError:
+        return "Homework not found"
+
+    if homework_index < len(user['grades']):
+        user['grades'][homework_index] = grade
+    else:
+        user['grades'].append(grade)
+
+    user_collection.update_one(
+        {"_id": user['_id']},  # Find the document by user ID
+        {"$set": {"grades": user['grades']}}  # Update the grades list
+    )
+
+    return "Grade updated successfully"
