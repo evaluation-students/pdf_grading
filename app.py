@@ -197,8 +197,8 @@ def grade():
 
 @app.route("/export", methods=["GET"])
 def export():
-    data = request.json
-    homework_name = data.get('homework_name')
+    # data = request.json
+    homework_name = request.args.get('homework_name')
     if not homework_name:
         return jsonify({"error": "Please provide a homework_name parameter"}), 400
 
