@@ -3,7 +3,7 @@ from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 from azure.ai.formrecognizer import DocumentAnalysisClient
 from pymongo import MongoClient
 from azure.core.credentials import AzureKeyCredential
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from utils import calculate_file_hash, grade_submission, update_grade
 import base64
 from azure.storage.blob import ContentSettings
@@ -13,6 +13,8 @@ from langchain.chains import LLMChain
 from dotenv import load_dotenv
 from flask_cors import CORS
 import json
+import pandas as pd
+from io import BytesIO
 
 load_dotenv()
 
@@ -231,8 +233,23 @@ def export():
             # Skip if homework_name is not in the homework list
             continue
 
-    # Return the list as JSON
-    return jsonify(output), 200
+    df = pd.DataFrame(output)
+
+    # Save the DataFrame to a BytesIO object as an Excel file
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Students')
+
+    # Set the pointer to the beginning of the BytesIO object
+    output.seek(0)
+
+    # Send the file for download
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name='students.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
 
 
 @app.route("/hello", methods=["POST"])
